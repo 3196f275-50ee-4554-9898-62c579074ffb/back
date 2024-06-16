@@ -26,10 +26,15 @@ class Penalty(Base):
     updated_at: Mapped[datetime] = mapped_column(
         server_default=utcnow(), server_onupdate=utcnow(), onupdate=utcnow())
 
+
+# server_default=expression.text("uuid_generate_v4()")
 class PenaltyBuilding(Base):
     __tablename__ = "penalty_buildings"
-    penalty_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("penalties.id"), primary_key=True)
-    building_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("buildings.id"), primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, index=True, default=uuid.uuid4
+    )
+    penalty_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("penalties.id"))
+    building_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("buildings.id"))
     created_at: Mapped[datetime] = mapped_column(server_default=utcnow())
     updated_at: Mapped[datetime] = mapped_column(
         server_default=utcnow(), server_onupdate=utcnow(), onupdate=utcnow())

@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import List
 
-from pydantic import BaseModel, PositiveInt, field_validator, EmailStr, UUID4
+from pydantic import BaseModel, PositiveInt, field_validator, EmailStr, UUID4, Field
 
 
 
@@ -19,12 +19,30 @@ class User(UserBase):
     id: UUID4
     roles: list | None = None
 
+
     class Config:
         orm_mode = True
         from_attributes = True
 
 
-
+class UserFull(BaseModel):
+    first_name: str | None
+    middle_name: str | None
+    last_name: str | None
+    email: EmailStr
+    group: str
+    class Config:
+        orm_mode = True
+        from_attributes = True
+class UserCredentials(BaseModel):
+    id: UUID4
+    first_name: str | None
+    last_name: str | None
+    email: EmailStr
+    group_name: str
+    class Config:
+        orm_mode = True
+        from_attributes = True
 
 
 class UserRegister(UserBase):
@@ -105,5 +123,8 @@ class Role(BaseModel):
 
 class Group(BaseModel):
     name: str
+
+
+
 
 

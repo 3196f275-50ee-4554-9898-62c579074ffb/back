@@ -1,19 +1,21 @@
-from asyncio import sleep
+import os
+import shutil
+import uuid
 from datetime import timedelta
-
 from fastapi.exceptions import HTTPException
-from typing import Annotated, List
 from random import randint
-from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 import aiohttp
-from fastapi import BackgroundTasks, File, UploadFile
+from fastapi import BackgroundTasks, File, UploadFile, APIRouter, Body, Form
 from fastapi import Depends
-from src.dependencies import oauth2_scheme
-from src.video import schemas
-from fastapi import WebSocket
-from starlette.websockets import WebSocketState
+from fastapi.responses import FileResponse
 
+from src.auth.core.jwt import decode_access_token
+from src.dependencies import oauth2_scheme, get_db
+
+from fastapi import WebSocket
+
+from src.video import services
 from src.video.services import dump_penalty
 
 router = APIRouter(
@@ -74,7 +76,7 @@ async def websocket_output(websocket: WebSocket):
 
 
 
-async def process_video(user_id: int, end: int, iter: int, fps: float) -> list:
+async def process_video(user_id: str,building_id: str, end: int, iter: int, fps: float, db: AsyncSession) -> list:
     i = 0
     index = 0
     results = []
@@ -86,30 +88,31 @@ async def process_video(user_id: int, end: int, iter: int, fps: float) -> list:
             body = "Something is wrong"
 
             results.append({"index": index, "header": header, "body": body, "current_time":current_time})
-            await dump_penalty(user_id=user_id, reason="Something is wrong")
+            await dump_penalty(user_id=user_id, building_id=building_id, reason=body, grade = header, db=db)
             index+=1
         elif rand > 70:
             header = "Warning"
             body = "Just a warning"
             results.append({"index": index, "header": header, "body": body, "current_time":current_time})
+            await dump_penalty(user_id=user_id,building_id=building_id, reason=body, grade=header, db=db)
             index+=1
         i += iter
     return results
 
 
+
 @router.post("/videoinput", response_model=list, status_code=200)
-async def video_input(token: Annotated[str, Depends(oauth2_scheme)], video: UploadFile = File(...)):
+async def video_input(
+        building_id: uuid.UUID = Body(...), video: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
     try:
         size = int(video.size)
         iter_size = size // 10
         fps = 30.0  # заменить на реальную частоту кадров вашего видео
-
-
+        user_id = '649b657c-3859-4680-b478-2dceb1d4bb8f'
+        # if not user:
+        #     raise HTTPException(status_code=401, detail="Unauthorized")
         # Получаем результаты из генератора
-        results = await process_video(size, iter_size, fps)
-
-        # Преобразуем результаты в формат схемы VideoResponse
-
+        results = await process_video(user_id=user_id, building_id=building_id, end=size, iter=iter_size, fps=fps, db=db)
 
         return results
 
@@ -117,6 +120,40 @@ async def video_input(token: Annotated[str, Depends(oauth2_scheme)], video: Uplo
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/video_to_ml")
+async def video_to_ml(
+        building_id: uuid.UUID = Form(...),
+        video: UploadFile = File(...),
+        db: AsyncSession = Depends(get_db)
+):
+    try:
+        video_path = f"temp/{video.filename}"
+        with open(video_path, 'wb') as buffer:
+            shutil.copyfileobj(video.file, buffer)
+        img_id=str(uuid.uuid4())
+        frames_dir = f"temp/frames_{img_id}"
+        os.makedirs(frames_dir)
+
+        results = await services.process_video2(video_path=video_path, db=db, building_id=building_id, user_id="649b657c-3859-4680-b478-2dceb1d4bb8f",img_id=img_id)
+
+        shutil.rmtree(frames_dir)
+        os.remove(video_path)
+
+
+        return results
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/mediacatalog")
+async def media_catalog():
+    catalog = os.listdir("src/media")
+    return catalog
+
+@router.get("/imagesmock", status_code=200)
+async def images_mock(image: str):
+    print(f"src/media/{image}")
+    return FileResponse(f"src/media/{image}")
 
 # @router.get("/employees", response_model=list[schemas.Employee])
 # async def get_employees(

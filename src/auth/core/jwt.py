@@ -91,9 +91,9 @@ def refresh_token_state(token: str):
     return {"token": _create_access_token(payload=payload).token}
 
 
-async def mail_token(user: User):
+async def mail_token(user: User, db: AsyncSession):
     """Return 2 hour lifetime access_token"""
-    roles = await get_roles_by_user_id(user_id=user.id, db=get_db())
+    roles = await get_roles_by_user_id(user_id=user.id, db=db)
     payload = {SUB: str(user.id), JTI: str(uuid.uuid4()), IAT: datetime.utcnow(), ROLES: [r.name for r in roles]}
     return _create_access_token(payload=payload, minutes=2 * 60).token
 
@@ -106,6 +106,6 @@ def add_refresh_token_cookie(response: Response, token: str):
         key="refresh",
         value=token,
         expires=int(exp.timestamp()),
-        httponly=False,
-        samesite='strict',
+        httponly=True,
+        samesite='lax',
     )

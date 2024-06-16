@@ -5,9 +5,9 @@ from fastapi.requests import Request
 from fastapi.responses import JSONResponse
 
 from fastapi import status, APIRouter, HTTPException, Depends, BackgroundTasks, Response, Cookie, Body
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 from pydantic import ValidationError
 
 from src.auth import services
@@ -72,11 +72,13 @@ async def register(
 async def login(
 
         data: schemas.UserLogin,
-
+        request: Request,
         response: Response,
         db: AsyncSession = Depends(get_db),
 
 ):
+
+
     user = await models.User.authenticate(
         db=db, email=data.email, password=data.password
     )
@@ -118,7 +120,7 @@ async def logout(
     return {"msg": "Succesfully logout"}
 
 
-@router.get("/me", response_model=schemas.User)
+@router.get("/me", response_model=schemas.UserCredentials)
 async def me(
         request: Request,
         token: Annotated[str, Depends(oauth2_scheme)],
@@ -128,9 +130,64 @@ async def me(
     print(request.cookies)
     return await models.User.find_by_id(db=db, id=token_data[SUB])
 
+@router.get("/users")
+async def get_users(
+        db: AsyncSession = Depends(get_db),
+):
+    query = select(models.User)
+    result = await db.execute(query)
+    users = result.scalars().all()
+
+    # Преобразование результатов запроса в Pydantic модели
+    users_data = [schemas.UserCredentials.from_orm(user) for user in users]
+
+
+    return users_data
+
+@router.get("/get_users_by_chief")
+async def get_users_by_chief(chief_id: uuid.UUID,db: AsyncSession = Depends(get_db) ):
+    query = select(models.User).where(models.User.chief_id == chief_id)
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
 
 #router2 ----------------------------------------------------------------------------
 
+@router2.patch("/change_credits")
+async def change_credits(
+        token: Annotated[str, Depends(oauth2_scheme)],
+        UserFull: schemas.UserFull,
+        db: AsyncSession = Depends(get_db),
+):
+    token_data = await decode_access_token(token=token, db=db)
+    user = await models.User.find_by_id(db=db, id=token_data[SUB])
+    user.credits = UserFull.credits
+    await user.save(db=db)
+    return {"msg": "Succesfully change credits"}
+
+@router2.patch("/set_chief")
+async def set_chief(
+        user_id: uuid.UUID,
+        chief_id: uuid.UUID,
+        db: AsyncSession = Depends(get_db),
+):
+    stmt = (
+        update(models.User)
+        .where(models.User.id == user_id)
+        .values(chief_id=chief_id)
+        .execution_options(synchronize_session="fetch")
+    )
+
+    result = await db.execute(stmt)
+
+    # Выполняем коммит для сохранения изменений в базе данных
+    await db.commit()
+
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="User not found or no changes made")
+
+    return {"msg": "Successfully set chief"}
 @router2.post("/add_permission")
 async def add_permissions(
         db: AsyncSession = Depends(get_db),
@@ -177,4 +234,6 @@ async def add_group_to_user(
     await services.set_group_to_user(db=db, user_id=user_id, group_id=group_id)
     return {"msg": "Succesfully add group to user"}
 
-router.include_router(router2)
+
+
+

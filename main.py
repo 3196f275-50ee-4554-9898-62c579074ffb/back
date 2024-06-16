@@ -1,9 +1,10 @@
 import aiohttp
 from fastapi_offline import FastAPIOffline as FastAPIOffline
 import uvicorn
-from src.auth.routers import router as router_auth
+from src.auth.routers import router as router_auth, router2 as router_usermod
 from src.video.routers import router as router_video
 from src.prorab.routers import router as router_prorab
+from src.statistics.routers import router as router_statistics
 from fastapi.testclient import TestClient
 # from src.kafka.routers import router as router_kafka
 # from fastapi.middleware.cors import CORSMiddleware
@@ -49,6 +50,8 @@ async def add_cors_headers(request, call_next):
 app.include_router(router_auth)
 app.include_router(router_video)
 app.include_router(router_prorab)
+app.include_router(router_usermod)
+app.include_router(router_statistics)
 
 
 # app.include_router(router_kafka)
@@ -70,5 +73,6 @@ app.include_router(router_prorab)
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
+
 
 # uvicorn.run(app, host="0.0.0.0", port=8000)

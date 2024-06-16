@@ -32,3 +32,5 @@ async def add_permission(db: AsyncSession, name: str, description: str):
     db.add(permission)
     result = await db.commit()
     return
+
+

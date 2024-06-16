@@ -26,6 +26,8 @@ class User(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True, index=True, default=uuid.uuid4
     )
+    chief_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=True)
+    group_name: Mapped[str] = mapped_column(ForeignKey("groups.name"), nullable=True, server_default='Работник', default='Работник')
     email: Mapped[str] = mapped_column(unique=True, index=True)
     first_name: Mapped[str] = mapped_column(nullable=True)
     middle_name: Mapped[str] = mapped_column(nullable=True)
@@ -50,6 +52,8 @@ class User(Base):
         if not user or not verify_password(password, user.password):
             return False
         return user
+
+
 
 class Role(Base):
     __tablename__ = "roles"

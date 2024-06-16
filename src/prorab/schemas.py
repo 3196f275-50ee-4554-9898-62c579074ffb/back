@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 class Task(BaseModel):
     id: uuid.UUID | None = None
     name: str
+    description: str | None = None
     start: datetime
     end: datetime
     type: str
